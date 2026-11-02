@@ -521,7 +521,7 @@ body.planmode .hero{padding-block:14px}
  <p><b>الترخيص:</b> البيانات المُشْتَقَّة مُرَخَّصة بترخيص <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a> (نسب المصدر ومشاركة التعديلات بالترخيص نفسه). يذكر المستودع الأصلي أن مصدر توزيع الصفحات (<code>mushaf-layout</code>) بلا ترخيص معلن، فيُراجَع ذلك قبل أي توزيع تجاري.</p>
  <p><b>حدود الدقة:</b> المضمَّن مطابق للمصدر وقت الاستخراج؛ ولا يُنسب إلى مجمع الملك فهد أو أي جهة رسمية ما لم تتحقق الطالبة من مصحفها المطبوع.</p>
  <p><b>التحقق عند التشغيل:</b> تفحص الأداة سلامة البيانات عند كل فتح (عدد السور والآيات والصفحات، وترتيبها، وبصمة رقمية). إن فشل الفحص تتوقف الأداة وتعرض رسالة بدل خطة خاطئة.</p>
- <p><b>الخصوصية:</b> لا يُرسَل أي شيء خارج جهازكِ. تُحفظ علامات الإنجاز في متصفحكِ دون الاسم، ويمكن مسحها من زر «مسح علامات الإنجاز». ولا يُحفَظ الاسم إلا إذا ضغطتِ «حفظ في خططي»، وفي جوالكِ وحده، ويمكنكِ حذف الخطة من هناك متى شئتِ.</p>
+ <p><b>الخصوصية:</b> لا يُرسَل اسمكِ ولا خطتكِ إلى أي جهة، ويُحصى فقط عدد الزيارات وعدد الخطط (التي أُنشئت وبدأ إنجازها واكتملت) عبر خدمة GoatCounter دون أي بيانات شخصية. تُحفظ علامات الإنجاز في متصفحكِ دون الاسم، ويمكن مسحها من زر «مسح علامات الإنجاز». ولا يُحفَظ الاسم إلا إذا ضغطتِ «حفظ في خططي»، وفي جوالكِ وحده، ويمكنكِ حذف الخطة من هناك متى شئتِ.</p>
 </details>
 <footer>مقرأة سَنا الآي · مُخَطَّط المراجعة والتثبيت</footer>
 </div>
@@ -827,6 +827,7 @@ document.querySelectorAll('#schedule .weekhead').forEach(h=>{const ids=h.dataset
  document.querySelectorAll('#sky .tower').forEach(t=>{const sts=[...t.querySelectorAll('.st')],f=sts.filter(x=>x.classList.contains('full')).length;t.classList.toggle('complete',f===sts.length);t.querySelector('h4 small').textContent=f===sts.length?'اكتمل البرج ★':`${ar(f)} من ${ar(sts.length)}`});
  const sn=$('skyNote');if(sn){const t=document.querySelectorAll('#schedule .session').length;sn.hidden=!(full===t&&t);sn.textContent='أتممتِ الخطة كلها وأضأتِ كل الأبراج، بارك الله فيكِ وثَبِّت حفظكِ ✨'}
  renderToday(state.plan);
+ if(notify&&full&&full===document.querySelectorAll('#schedule .session').length)trackOnce(state.plan,'done');
  if(state.savedId){const L=loadPlans(),r=L.find(x=>x.id===state.savedId);if(r){r.done=full;r.total=document.querySelectorAll('#schedule .session').length;savePlans(L);renderMyPlans()}}
 }
 function openPrintView(){
@@ -966,6 +967,27 @@ function setDefaults(){
 }
 function resetAll(){document.body.classList.remove('planmode');auto=false;setDefaults();$('result').hidden=true;state.shown=false;state.plan=null;window.scrollTo({top:0,behavior:'smooth'});$('student').focus({preventScroll:true})}
 
+
+/* ===== إحصاء مجهول للخطط (بلا أي بيانات شخصية) ===== */
+const EVK='sana-planner-evts-v1';
+function track(path,title,tries){
+ try{
+  if(window.goatcounter&&typeof window.goatcounter.count==='function'){window.goatcounter.count({path,title,event:true});return}
+ }catch(e){return}
+ if((tries||0)<4)setTimeout(()=>track(path,title,(tries||0)+1),1500);
+}
+function trackOnce(plan,kind){
+ if(!plan)return;
+ try{
+  const key=`${plan.sig}|${isoLocal(plan.cfg.start)}|${isoLocal(plan.cfg.end)}`;
+  let o={};try{o=JSON.parse(localStorage.getItem(EVK))||{}}catch(e){}
+  const ks=Object.keys(o);if(ks.length>60)ks.slice(0,ks.length-60).forEach(k=>delete o[k]);
+  o[key]=o[key]||{};if(o[key][kind])return;o[key][kind]=1;
+  try{localStorage.setItem(EVK,JSON.stringify(o))}catch(e){}
+  const T={created:['plan-created','خطة أُنشئت'],active:['plan-active','خطة بدأ فيها الإنجاز'],done:['plan-done','خطة اكتملت']}[kind];
+  track(T[0],T[1]);
+ }catch(e){}
+}
 
 /* ===== عبارات التشجيع ===== */
 const PRAISE=['قمرتنا أتمَّت أول يوم! 🌧️',
@@ -1140,7 +1162,7 @@ function boot(){
   const r=readForm();showErrors(r.errors);
   if(r.errors.length){$('result').hidden=true;state.shown=false;state.plan=null;return}
   const ms=state.shown?0:(typeof window.__SANA_DELAY==='number'?window.__SANA_DELAY:15000);
-  const fin=()=>{state.waiting=false;const o=$('waitBox');o.hidden=true;document.body.classList.remove('waiting');document.body.classList.add('planmode');if(generate(true))auto=true;else document.body.classList.remove('planmode')};
+  const fin=()=>{state.waiting=false;const o=$('waitBox');o.hidden=true;document.body.classList.remove('waiting');document.body.classList.add('planmode');if(generate(true)){auto=true;trackOnce(state.plan,'created')}else document.body.classList.remove('planmode')};
   if(ms<=0){fin();return}
   state.waiting=true;const o=$('waitBox'),bar=$('waitBar');
   bar.style.transition='none';bar.style.width='0%';o.hidden=false;document.body.classList.add('waiting');
@@ -1223,7 +1245,7 @@ function boot(){
   /* نحتفظ بعلامات الأيام التي ليست ظاهرة الآن لنفس النصاب */
   const old=checksFor(state.plan.sig),visible=new Set([...document.querySelectorAll('#schedule input[type=checkbox]')].map(b=>b.dataset.k));
   old.forEach(k=>{if(!visible.has(k))set.add(k)});
-  writeChecks(state.plan.sig,set);updateProgress(true);
+  writeChecks(state.plan.sig,set);if(e.target.checked)trackOnce(state.plan,'active');updateProgress(true);
  });
  window.SanaPlanner={Core,state,boot:res,readForm,buildPlan,planText,praiseFor,shareText,icsText,renderToday,loadPlans,PRAISE};
 }
@@ -1238,5 +1260,6 @@ boot();
   <div class="waitbar" aria-hidden="true"><i id="waitBar"></i></div>
  </div>
 </div>
+<script data-goatcounter="https://sana-planner.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
